@@ -1,16 +1,41 @@
+import config as const
+from database.db_operations import create_user, user_exists
 from linkedin_api import Linkedin
+from tqdm import tqdm
 
-api = Linkedin('cittest1@tutamail.com', 'password@123')
+api = Linkedin(const.LINKEDIN_EMAIL, const.LINKEDIN_PASSWORD)
 
+def searchAlumni(limit=-1):
+    res = api.search_people(schools=["chennai-institute-of-technology"], limit=limit)
+    for user in tqdm(res):
+        if "urn_id" in user:
+            if ("name" not in user or
+                "location" not in user):
+                raise Exception(f"Invalid return from search: {user}")
+            if (user_exists(user["urn_id"])):
+                print(f"User already exists {user['name']}")
+            else:
+                if ("name" not in user or
+                    "location" not in user):
+                    raise Exception(f"Invalid return from search: {user}")
+                create_user(user['urn_id'], user['name'], user['location'])
+                print(f"User added to db: {user['name']}")
+
+    # with open("output.json", "w") as f:
+    #     print(json.dumps(res, indent=4))
+    #     f.write(json.dumps(res, indent=4))
+        # exit()
+    
 def getData(username):
     if (not username):
         raise Exception("Username not provided")
     
     try:
-        res = api.get_profile(username)
+        # res = api.get_profile(username)
+        res = api.get_profile(urn_id="ACoAADjNw_8BDBsGSXqRjxyOkufo9s6ZOiMnxVY")
         if (not res):
             raise Exception(f"Unable to fetch from api: {username}")
-        # print(res["education"])
+        print(res["urn_id"])
         print(f"{res['firstName']} {res['lastName']}", end = ": ")
         edu = res["education"]
         exp = res["experience"]
@@ -35,4 +60,5 @@ def getData(username):
         print(f"Unable to fetch api: {e}")
 
 
-getData("vikram-raj-26406973")
+# searchAlumni(10)
+# res = api.search_people(keyword_school="Chennai Institute of Technology")
