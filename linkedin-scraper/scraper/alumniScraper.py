@@ -1,64 +1,132 @@
+from datetime import date
+from random import randint
+from time import sleep
+
 import config as const
-from database.db_operations import create_user, user_exists
+import database.db_operations as db
 from linkedin_api import Linkedin
 from tqdm import tqdm
 
 api = Linkedin(const.LINKEDIN_EMAIL, const.LINKEDIN_PASSWORD)
 
+"""
+Searches people in CIT and adds them to DB.
+limit=How many records to fetch, defaults to -1(all)
+"""
 def searchAlumni(limit=-1):
-    res = api.search_people(schools=["chennai-institute-of-technology"], limit=limit)
-    for user in tqdm(res):
-        if "urn_id" in user:
-            if ("name" not in user or
-                "location" not in user):
-                raise Exception(f"Invalid return from search: {user}")
-            if (user_exists(user["urn_id"])):
-                print(f"User already exists {user['name']}")
-            else:
-                if ("name" not in user or
-                    "location" not in user):
-                    raise Exception(f"Invalid return from search: {user}")
-                create_user(user['urn_id'], user['name'], user['location'])
-                print(f"User added to db: {user['name']}")
+    existNum = addedNum = 0
+    added = []
+    existed = []
 
-    # with open("output.json", "w") as f:
-    #     print(json.dumps(res, indent=4))
-    #     f.write(json.dumps(res, indent=4))
-        # exit()
-    
-def getData(username):
-    if (not username):
-        raise Exception("Username not provided")
-    
+    res = api.search_people(schools=["chennai-institute-of-technology"], limit=limit)
+    pbar = tqdm(res)
+    pbar.set_description("S")
+    for user in pbar:
+        if ("name" not in user or
+            "location" not in user):
+            raise Exception(f"Invalid return from search: {user}")
+        if "urn_id" in user:
+            if (db.user_exists(user["urn_id"])):
+                existNum += 1
+                existed.append(user["name"])
+                # print(f"User already exists {user['name']}")
+            else:
+                db.create_user(user['urn_id'], user['name'], user['location'])
+                addedNum += 1
+                added.append(user["name"])
+                # print(f"User added to db: {user['name']}")
+    print(f"Scrape successful!\nNew users: {addedNum}\nExisting users: {existNum}\n\nUsers added: {added}\n\nExisting users: {existed}")
+
+"""
+Fetches profile of user
+urn_id = User's urn_id
+"""
+def getData(urn_id):  
     try:
         # res = api.get_profile(username)
-        res = api.get_profile(urn_id="ACoAADjNw_8BDBsGSXqRjxyOkufo9s6ZOiMnxVY")
-        if (not res):
-            raise Exception(f"Unable to fetch from api: {username}")
-        print(res["urn_id"])
-        print(f"{res['firstName']} {res['lastName']}", end = ": ")
+        res = api.get_profile(urn_id=urn_id)
+        # print(f"{res['firstName']} {res['lastName']}", end = ": ")
+        # print(res)
+        # return
         edu = res["education"]
         exp = res["experience"]
         
-        studied = staff = False
-            
+        if not edu or len(edu) == 0:
+            print("Person does not have CIT in education")
+            return 
         for i in edu:
-            if ("school" in i and i["school"]["schoolName"] == "Chennai Institute of Technology"):
-                if (i['timePeriod']['endDate']['year'] < 2025):
-                    print(f"Student was alumni of CIT. Graduated {i['timePeriod']['endDate']['year']} and Student's experience is {exp[0]['companyName']} from {exp[0]['timePeriod']['startDate']['month']}/{exp[0]['timePeriod']['startDate']['year']}.")
-                else:
-                    print(f"Student currently studying at CIT from {i['timePeriod']['startDate']['year']}.")
-                studied = True
+            if ("school" in i and 
+                (
+                    ("schoolName" in i["school"] and i["school"]["schoolName"] == "Chennai Institute of Technology") 
+                    or 
+                    ("entityUrn" in i["school"] and i["school"]["entityUrn"] == "urn:li:fs_miniSchool:195969")
+                )
+            ):
+                if ("timePeriod" in i and "endDate" in i['timePeriod'] and i["timePeriod"]['endDate']['year'] < 2025):
+                    # ---------------- ALUMNI FOUND ------------------ #
+
+                    db.update_user(urn_id, alumni=True)
+
+                    if (not exp or len(exp) == 0):
+                        print("Person studied in CIT is jobless")
+                        break
+
+                    for job in exp:
+                        if ("companyName" not in job or "companyUrn" not in job):
+                            raise Exception("Company URN or Name is missing!")
+                        
+                        location = job["locationName"] if "locationName" in job else ""
+                        companyName = job["companyName"]
+                        title = job["title"] if "title" in job else ""
+                        companyUrn = job["companyUrn"]
+                        startDate = endDate = None
+                        is_current = False
+                        if ("timePeriod" in job):
+                            tp = job["timePeriod"]
+                            if ("startDate" in tp):
+                                start = tp["startDate"]
+                                if ("year" in start):
+                                    startDate = date(start["year"], start["month"] if "month" in start else 1, 1)
+                            if ("endDate" in tp):
+                                end = tp["endDate"]
+                                if ("year" in start):
+                                    endDate = date(end["year"], end["month"] if "month" in end else 1, 1)
+                            else:
+                                is_current = True if "startDate" in tp else False
+
+                        # ------------------- DATABASE ADD ----------------------- #
+                        if (not db.company_exists(companyUrn)):
+                            companyId = db.create_company(companyUrn, companyName)
+                        else:
+                            company = db.get_company(companyUrn, by_urn=True)
+                            companyId = company.id
+                        if (not db.job_experience_exists(urn_id, companyId, title)):
+                            # ----------------- ADD JOB EXPERIENCE --------------------- #
+                            db.create_job_experience(urn_id, companyId, title, location, startDate, endDate, is_current)
                 break
-            elif (exp[0]["companyName"] == "Chennai Institute of Technology"):
-                print("Staff at CIT")
-                staff = True
-                break
-        if (not studied and not staff):
-            print("Student not a staff or is not studying in CIT")
+        else:
+            print("Not a student in CIT")
+        return f"{res['firstName']} {res['lastName']}"
     except Exception as e:
         print(f"Unable to fetch api: {e}")
 
-
-# searchAlumni(10)
-# res = api.search_people(keyword_school="Chennai Institute of Technology")
+"""
+Process all stored users
+limit=How many records to process, defaults to -1(all)
+"""
+def processStoredUsers(limit=-1):
+    processedCount = 0
+    processedNames = []
+    urn_ids = db.get_urn_ids()
+    if (limit != -1):
+        urn_ids = urn_ids[:limit]
+    pbar = tqdm(urn_ids)
+    for urn_id in pbar:
+        name = getData(urn_id)
+        processedNames.append(name)
+        pbar.set_description(f"Processing user: {urn_id}")
+        processedCount += 1
+        sleep(randint(5, 10))
+    print(f"\n\nProcessed users: {processedNames}")
+    print(f"\n\nProcessed {processedCount} users!")
+    
