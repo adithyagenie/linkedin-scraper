@@ -5,10 +5,10 @@ from time import sleep
 import config as const
 import database.db_operations as db
 from linkedin_api import Linkedin
-from tqdm import tqdm
+from tqdm import tqdm, trange
 
 api = Linkedin(const.LINKEDIN_EMAIL, const.LINKEDIN_PASSWORD)
-
+api2 = Linkedin
 """
 Searches people in CIT and adds them to DB.
 limit=How many records to fetch, defaults to -1(all)
@@ -18,9 +18,11 @@ def searchAlumni(limit=-1):
     added = []
     existed = []
 
+    pbar = trange(limit)
+    pbar.set_description("Searching people...")
     res = api.search_people(schools=["chennai-institute-of-technology"], limit=limit)
     pbar = tqdm(res)
-    pbar.set_description("S")
+    pbar.set_description("Storing people...")
     for user in pbar:
         if ("name" not in user or
             "location" not in user):
@@ -100,9 +102,14 @@ def getData(urn_id):
                         else:
                             company = db.get_company(companyUrn, by_urn=True)
                             companyId = company.id
-                        if (not db.job_experience_exists(urn_id, companyId, title)):
+                        existing_job_exp = db.job_experience_exists(urn_id, companyId, title)
+                        if (existing_job_exp == None):
                             # ----------------- ADD JOB EXPERIENCE --------------------- #
                             db.create_job_experience(urn_id, companyId, title, location, startDate, endDate, is_current)
+                        else:
+                            # ----------------- UPDATE JOB EXPERIENCE --------------------- #
+                            db.update_job_experience(existing_job_exp, person_id=urn_id, company_id=companyId, job_title=title, location=location, start_date=startDate, end_date=endDate, is_current=is_current)
+
                 break
         else:
             print("Not a student in CIT")
@@ -126,7 +133,7 @@ def processStoredUsers(limit=-1):
         processedNames.append(name)
         pbar.set_description(f"Processing user: {urn_id}")
         processedCount += 1
-        sleep(randint(5, 10))
+        sleep(randint(10, 15))
     print(f"\n\nProcessed users: {processedNames}")
     print(f"\n\nProcessed {processedCount} users!")
     

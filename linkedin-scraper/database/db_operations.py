@@ -114,13 +114,34 @@ def get_job_experiences(person_id):
 def job_experience_exists(person_id, company_id, job_title):
     session = Session()
     try:
-        does_exist = session.query(exists().where(
+        existing_job = session.query(JobExperience.id).filter(
             and_(
                 JobExperience.person_id == person_id,
                 JobExperience.company_id == company_id,
                 JobExperience.job_title == job_title
             )
-        )).scalar()
-        return does_exist
+        ).first()
+        
+        return existing_job.id if existing_job else None
+    finally:
+        session.close()
+
+def update_job_experience(job_exp_id, **kwargs):
+    session = Session()
+    try:
+        job_exp = session.query(JobExperience).filter(JobExperience.id == job_exp_id).first()
+        if job_exp:
+            for key, value in kwargs.items():
+                if hasattr(job_exp, key):
+                    setattr(job_exp, key, value)
+                else:
+                    raise ValueError(f"JobExperience object has no attribute '{key}'")
+            session.commit()
+            return True
+        else:
+            return False
+    except Exception as e:
+        session.rollback()
+        raise e
     finally:
         session.close()
