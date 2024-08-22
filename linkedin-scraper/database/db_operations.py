@@ -2,7 +2,7 @@ from config import DATABASE_URI
 from sqlalchemy import and_, create_engine, exists, select
 from sqlalchemy.orm import sessionmaker
 
-from .models import Base, Company, JobExperience, User
+from .models import Base, Company, JobExperience, School, SchoolExperience, User
 
 engine = create_engine(DATABASE_URI)
 Base.metadata.create_all(engine)
@@ -136,6 +136,91 @@ def update_job_experience(job_exp_id, **kwargs):
                     setattr(job_exp, key, value)
                 else:
                     raise ValueError(f"JobExperience object has no attribute '{key}'")
+            session.commit()
+            return True
+        else:
+            return False
+    except Exception as e:
+        session.rollback()
+        raise e
+    finally:
+        session.close()
+
+def create_school(urn, name):
+    session = Session()
+    new_school = School(urn=urn, name=name)
+    session.add(new_school)
+    session.commit()
+    school_id = new_school.id
+    session.close()
+    return school_id
+
+def get_school(identifier, by_urn=False):
+    session = Session()
+    try:
+        if by_urn:
+            school = session.query(School).filter(School.urn == str(identifier)).first()
+        else:
+            school = session.query(School).filter(School.id == int(identifier)).first()
+        
+        return school
+    finally:
+        session.close()
+
+def school_exists(urn):
+    session = Session()
+    does_exist = session.query(exists().where(School.urn == urn)).scalar()
+    session.close()
+    return does_exist
+
+# SchoolExperience operations
+def create_school_experience(person_id, school_id, degree, field, grade):
+    session = Session()
+    new_school_exp = SchoolExperience(
+        person_id=person_id,
+        school_id=school_id,
+        degree=degree,
+        field=field,
+        grade=grade
+    )
+    session.add(new_school_exp)
+    session.commit()
+    school_exp_id = new_school_exp.id
+    session.close()
+    return school_exp_id
+
+def get_school_experiences(person_id):
+    session = Session()
+    school_exps = session.query(SchoolExperience).filter_by(person_id=person_id).all()
+    session.close()
+    return school_exps
+
+def school_experience_exists(person_id, school_id, degree, field):
+    session = Session()
+    try:
+        existing_school_exp = session.query(SchoolExperience.id).filter(
+            and_(
+                SchoolExperience.person_id == person_id,
+                SchoolExperience.school_id == school_id,
+                SchoolExperience.degree == degree,
+                SchoolExperience.field == field
+            )
+        ).first()
+        
+        return existing_school_exp.id if existing_school_exp else None
+    finally:
+        session.close()
+
+def update_school_experience(school_exp_id, **kwargs):
+    session = Session()
+    try:
+        school_exp = session.query(SchoolExperience).filter(SchoolExperience.id == school_exp_id).first()
+        if school_exp:
+            for key, value in kwargs.items():
+                if hasattr(school_exp, key):
+                    setattr(school_exp, key, value)
+                else:
+                    raise ValueError(f"SchoolExperience object has no attribute '{key}'")
             session.commit()
             return True
         else:

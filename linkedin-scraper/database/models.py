@@ -12,6 +12,7 @@ class User(Base):
     location = Column(String(255), nullable=False)
     alumni = Column(Boolean, default=False)
     job_experiences = relationship("JobExperience", back_populates="user")
+    school_experiences = relationship("SchoolExperience", back_populates="user")
 
     def __repr__(self):
         return f"<User(urn_id='{self.urn_id}', name='{self.name}', location='{self.location}', alumni='{self.alumni}')>"
@@ -44,3 +45,30 @@ class JobExperience(Base):
 
     def __repr__(self):
         return f"<JobExperience(id={self.id}, person_id='{self.person_id}', company_id={self.company_id}, job_title='{self.job_title}')>"
+
+class School(Base):
+    __tablename__ = 'school'
+
+    id = Column(Integer, primary_key=True)
+    urn = Column(String(50), unique=True)
+    name = Column(String(255), nullable=False)
+    school_experiences = relationship("SchoolExperience", back_populates="school")
+
+    def __repr__(self):
+        return f"<School(id={self.id}, urn='{self.urn}', name='{self.name}')>"
+
+class SchoolExperience(Base):
+    __tablename__ = 'schoolexp'
+
+    id = Column(Integer, primary_key=True)
+    person_id = Column(String(50), ForeignKey('users.urn_id'))
+    school_id = Column(Integer, ForeignKey('school.id'))
+    degree = Column(String(255))
+    field = Column(String(255))
+    grade = Column(Integer)
+
+    user = relationship("User", back_populates="school_experiences")
+    school = relationship("School", back_populates="school_experiences")
+
+    def __repr__(self):
+        return f"<SchoolExperience(id={self.id}, person_id='{self.person_id}', school_id={self.school_id}, degree='{self.degree}', field='{self.field}')>"
