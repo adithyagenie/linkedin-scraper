@@ -54,7 +54,7 @@ def getData(urn_id):
         exp = res["experience"]
         
         if not edu or len(edu) == 0:
-            print("Person does not have CIT in education")
+            # print("Person does not have CIT in education")
             return 
         for i in edu:
             if ("school" in i and 
@@ -64,13 +64,16 @@ def getData(urn_id):
                     ("entityUrn" in i["school"] and i["school"]["entityUrn"] == "urn:li:fs_miniSchool:195969")
                 )
             ):
+                if("startDate" in i and i["timePeriod"]['startDate']['year'] == 2024):
+                    print("New Batch Student")
+                
                 if ("timePeriod" in i and "endDate" in i['timePeriod'] and i["timePeriod"]['endDate']['year'] < 2025):
                     # ---------------- ALUMNI FOUND ------------------ #
 
                     db.update_user(urn_id, alumni=True)
 
                     if (not exp or len(exp) == 0):
-                        print("Person studied in CIT is jobless")
+                        # print("Person studied in CIT is jobless")
                         break
 
                     for job in exp:
@@ -133,7 +136,7 @@ def processStoredUsers(limit=-1):
         processedNames.append(name)
         pbar.set_description(f"Processing user: {urn_id}")
         processedCount += 1
-        sleep(randint(10, 15))
+        sleep(randint(7, 20))
     print(f"\n\nProcessed users: {processedNames}")
     print(f"\n\nProcessed {processedCount} users!")
     
