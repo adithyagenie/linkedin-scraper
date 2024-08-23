@@ -1,5 +1,6 @@
 import os
 import sys
+from time import sleep
 
 import scraper.alumniScraper as scrape
 
@@ -11,7 +12,10 @@ from scraper.alumniScraper import searchAlumni
 
 def main():
     print("Started scraping!")
-    searchAlumni(limit=20)
+    print("Searching for alumni!")
+    searchAlumni(limit=150)
+    sleep(20)
+    print("Processing users!")
     scrape.processStoredUsers(limit=5)
 
 if __name__ == "__main__":

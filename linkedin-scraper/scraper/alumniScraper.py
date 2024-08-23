@@ -55,7 +55,7 @@ def getData(urn_id):
         exp = res["experience"]
         
         if not edu or len(edu) == 0:
-            print("Person does not have CIT in education")
+            # print("Person does not have CIT in education")
             return 
         for i in edu:
             if ("school" in i and 
@@ -64,7 +64,7 @@ def getData(urn_id):
                     or 
                     ("entityUrn" in i["school"] and i["school"]["entityUrn"] == "urn:li:fs_miniSchool:195969")
                 )
-            ):
+            ):                
                 if ("timePeriod" in i and "endDate" in i['timePeriod'] and i["timePeriod"]['endDate']['year'] < 2025):
                     # ---------------- ALUMNI FOUND ------------------ #
 
@@ -164,7 +164,7 @@ def processStoredUsers(limit=-1):
         processedNames.append(name)
         pbar.set_description(f"Processing user: {name}")
         processedCount += 1
-        sleep(randint(10, 15))
+        sleep(randint(7, 20))
     print(f"\n\nProcessed users: {processedNames}")
     print(f"\n\nProcessed {processedCount} users!")
     
