@@ -1,3 +1,4 @@
+import traceback
 from datetime import date
 from random import randint
 from time import sleep
@@ -70,7 +71,7 @@ def getData(urn_id):
                     db.update_user(urn_id, alumni=True)
 
                     if (not exp or len(exp) == 0):
-                        print("Person studied in CIT is jobless")
+                        print("Person studied in CIT is not in a job currently!")
                         break
 
                     for job in exp:
@@ -79,7 +80,7 @@ def getData(urn_id):
                         
                         location = job["locationName"] if "locationName" in job else ""
                         companyName = job["companyName"]
-                        title = job["title"] if "title" in job else ""
+                        jobTitle = job["title"] if "title" in job else ""
                         companyUrn = job["companyUrn"]
                         startDate = endDate = None
                         is_current = False
@@ -102,13 +103,42 @@ def getData(urn_id):
                         else:
                             company = db.get_company(companyUrn, by_urn=True)
                             companyId = company.id
-                        existing_job_exp = db.job_experience_exists(urn_id, companyId, title)
-                        if (existing_job_exp == None):
-                            # ----------------- ADD JOB EXPERIENCE --------------------- #
-                            db.create_job_experience(urn_id, companyId, title, location, startDate, endDate, is_current)
+                        # ------------------ UPSERT JOB EXPERIENCE --------------------- #
+                        db.upsert_job_experience(urn_id, companyId, jobTitle, startDate, location, endDate, is_current)
+
+                    # -------------------------- SCHOOL ---------------------- #
+                    for school in edu:
+                        schoolName = school["schoolName"]
+                        schoolUrn = school["entityUrn"]
+                        startDate = endDate = None
+                        degreeName = "NOTSET"
+                        fieldOfStudy = grade = None
+                        is_current = False
+                        if ("timePeriod" in school):
+                            tp = school["timePeriod"]
+                            if ("startDate" in tp):
+                                start = tp["startDate"]
+                                if ("year" in start):
+                                    startDate = date(start["year"], start["month"] if "month" in start else 1, 1)
+                            if ("endDate" in tp):
+                                end = tp["endDate"]
+                                if ("year" in start):
+                                    endDate = date(end["year"], end["month"] if "month" in end else 1, 1)
+                            else:
+                                is_current = True if "startDate" in tp else False
+                        degreeName = school["degreeName"] if "degreeName" in school else "NOTSET"
+                        fieldOfStudy = school["fieldOfStudy"] if "fieldOfStudy" in school else None
+                        grade = float(school["grade"][:-1]) if "grade" in school else None
+
+                        # ------------------- DATABASE ADD ----------------------- #
+                        if (not db.school_exists(schoolUrn)):
+                            schoolId = db.create_school(schoolUrn, schoolName)
                         else:
-                            # ----------------- UPDATE JOB EXPERIENCE --------------------- #
-                            db.update_job_experience(existing_job_exp, person_id=urn_id, company_id=companyId, job_title=title, location=location, start_date=startDate, end_date=endDate, is_current=is_current)
+                            existing_school = db.get_school(schoolUrn, by_urn=True)
+                            schoolId = existing_school.id
+                        
+                        # -------------------------- UPSERT SCHOOL EXPERIENCE -------------------------- #
+                        db.upsert_school_experience(urn_id, schoolId, degreeName, fieldOfStudy, grade, startDate, endDate, is_current)
 
                 break
         else:
@@ -116,6 +146,7 @@ def getData(urn_id):
         return f"{res['firstName']} {res['lastName']}"
     except Exception as e:
         print(f"Unable to fetch api: {e}")
+        print(traceback.format_exc())
 
 """
 Process all stored users
@@ -131,7 +162,7 @@ def processStoredUsers(limit=-1):
     for urn_id in pbar:
         name = getData(urn_id)
         processedNames.append(name)
-        pbar.set_description(f"Processing user: {urn_id}")
+        pbar.set_description(f"Processing user: {name}")
         processedCount += 1
         sleep(randint(10, 15))
     print(f"\n\nProcessed users: {processedNames}")
