@@ -2,6 +2,7 @@ from sqlalchemy import (
     Boolean,
     Column,
     Date,
+    DateTime,
     Float,
     ForeignKey,
     Integer,
@@ -10,6 +11,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
 Base = declarative_base()
 
@@ -20,11 +22,12 @@ class User(Base):
     name = Column(String(255), nullable=False)
     location = Column(String(255))
     alumni = Column(Boolean, default=False)
-    job_experiences = relationship("JobExperience", back_populates="user")
-    school_experiences = relationship("SchoolExperience", back_populates="user")
+    last_updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    job_experiences = relationship("JobExperience", back_populates="user", cascade="all, delete-orphan")
+    school_experiences = relationship("SchoolExperience", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<User(urn_id='{self.urn_id}', name='{self.name}', location='{self.location}', alumni='{self.alumni}')>"
+        return f"<User(urn_id='{self.urn_id}', name='{self.name}', location='{self.location}', alumni={self.alumni}, last_updated_at='{self.last_updated_at}')>"
 
 class Company(Base):
     __tablename__ = 'company'

@@ -2,6 +2,7 @@ from config import DATABASE_URI
 from sqlalchemy import and_, create_engine, exists, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.sql import func
 
 from .models import Base, Company, JobExperience, School, SchoolExperience, User
 
@@ -11,7 +12,7 @@ Session = sessionmaker(bind=engine)
 
 def create_user(urn_id, name, location=None, alumni=False):
     session = Session()
-    new_user = User(urn_id=urn_id, name=name, location=location, alumni=alumni)
+    new_user = User(urn_id=urn_id, name=name, location=location, alumni=alumni, last_updated_at=func.now())
     session.add(new_user)
     session.commit()
     session.close()
@@ -49,6 +50,22 @@ def update_user(urn_id, **kwargs):
             return True
         else:
             return False
+    finally:
+        session.close()
+
+def update_user_last_updated(urn_id):
+    session = Session()
+    try:
+        user = session.query(User).filter(User.urn_id == urn_id).first()
+        if user:
+            user.last_updated_at = func.now()
+            session.commit()
+            return True
+        return False
+    except Exception as e:
+        session.rollback()
+        print(f"Error updating user last_updated_at: {e}")
+        return False
     finally:
         session.close()
 
@@ -187,6 +204,20 @@ def upsert_job_experience(person_id, company_id, job_title, start_date, location
     finally:
         session.close()
 
+def delete_user_job_experiences(person_id):
+    session = Session()
+    try:
+        # Delete all job experiences for the given person_id
+        session.query(JobExperience).filter(JobExperience.person_id == person_id).delete()
+        session.commit()
+        return True
+    except Exception as e:
+        session.rollback()
+        print(f"Error deleting job experiences: {e}")
+        return False
+    finally:
+        session.close()
+
 def create_school(urn, name):
     session = Session()
     new_school = School(urn=urn, name=name)
@@ -310,6 +341,20 @@ def upsert_school_experience(person_id, school_id, degree, field=None, grade=Non
     except Exception as e:
         session.rollback()
         print(f"Error in upsert_school_experience: {e}")
+        return False
+    finally:
+        session.close()
+
+def delete_user_school_experience(person_id):
+    session = Session()
+    try:
+        # Delete all school experiences for the given person_id
+        session.query(SchoolExperience).filter(SchoolExperience.person_id == person_id).delete()
+        session.commit()
+        return True
+    except Exception as e:
+        session.rollback()
+        print(f"Error deleting school experiences: {e}")
         return False
     finally:
         session.close()

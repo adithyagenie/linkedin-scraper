@@ -74,6 +74,10 @@ def getData(urn_id):
                         print("Person studied in CIT is not in a job currently!")
                         break
 
+                    # -------------------- DELETE EXISTING JOB RECORDS ------------------------ #
+                    db.delete_user_job_experiences(urn_id)
+
+                    # -------------------- ADD NEW JOB RECORDS ------------------- #
                     for job in exp:
                         if ("companyName" not in job or "companyUrn" not in job):
                             raise Exception("Company URN or Name is missing!")
@@ -106,6 +110,9 @@ def getData(urn_id):
                         # ------------------ UPSERT JOB EXPERIENCE --------------------- #
                         db.upsert_job_experience(urn_id, companyId, jobTitle, startDate, location, endDate, is_current)
 
+                    # ----------------- DELETE SCHOOL EXP -------------------- #
+                    db.delete_user_school_experience(urn_id)
+                    
                     # -------------------------- SCHOOL ---------------------- #
                     for school in edu:
                         schoolName = school["schoolName"]
@@ -136,9 +143,12 @@ def getData(urn_id):
                         else:
                             existing_school = db.get_school(schoolUrn, by_urn=True)
                             schoolId = existing_school.id
-                        
+
                         # -------------------------- UPSERT SCHOOL EXPERIENCE -------------------------- #
                         db.upsert_school_experience(urn_id, schoolId, degreeName, fieldOfStudy, grade, startDate, endDate, is_current)
+
+                    # -------------- UPDATE USER LAST UPD TIMESTAMP ------------------ #
+                    db.update_user_last_updated(urn_id)
 
                 break
         else:
