@@ -6,9 +6,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATABASE_URI = os.environ.get("DATABASE_URL")
-LINKEDIN_EMAIL = os.environ.get("LINKEDIN_EMAIL")
-LINKEDIN_PASSWORD = os.environ.get("LINKEDIN_PASSWORD")
 
-if (not all({DATABASE_URI, LINKEDIN_EMAIL, LINKEDIN_PASSWORD})):
+LINKEDIN_EMAIL = os.environ.get("LINKEDIN_EMAIL").split()
+LINKEDIN_PASSWORD = os.environ.get("LINKEDIN_PASSWORD").split()
+COOLDOWN = os.environ.get("COOLDOWN")
+if (COOLDOWN is not None):
+    COOLDOWN = int(COOLDOWN)
+
+if (not all([DATABASE_URI, LINKEDIN_EMAIL, LINKEDIN_PASSWORD])):
     print("ENV Variables not set.")
     sys.exit(1)

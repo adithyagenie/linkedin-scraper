@@ -1,27 +1,26 @@
 import traceback
 from datetime import date
-from random import randint
-from time import sleep
 
-import config as const
 import database.db_operations as db
-from linkedin_api import Linkedin
 from tqdm import tqdm, trange
 
-api = Linkedin(const.LINKEDIN_EMAIL, const.LINKEDIN_PASSWORD)
-api2 = Linkedin
+from .clientManager import APIClientManager
+
 """
 Searches people in CIT and adds them to DB.
 limit=How many records to fetch, defaults to -1(all)
 """
-def searchAlumni(limit=-1):
+def searchAlumni(apiManager: APIClientManager, limit=-1):
+    uname, api = apiManager.get_client()
+    # print(f"INFO: Req made with client {uname}")
     existNum = addedNum = 0
     added = []
     existed = []
 
     pbar = trange(limit)
-    pbar.set_description("Searching people...")
+    pbar.set_description(f"Searching people (client: {uname})...")
     res = api.search_people(schools=["chennai-institute-of-technology"], limit=limit)
+    apiManager.release_client(uname, api)
     pbar = tqdm(res)
     pbar.set_description("Storing people...")
     for user in pbar:
@@ -44,10 +43,12 @@ def searchAlumni(limit=-1):
 Fetches profile of user
 urn_id = User's urn_id
 """
-def getData(urn_id):  
+def getData(apiManager: APIClientManager, urn_id):  
     try:
         # res = api.get_profile(username)
+        uname, api = apiManager.get_client()
         res = api.get_profile(urn_id=urn_id)
+        apiManager.release_client(uname, api)
         # print(f"{res['firstName']} {res['lastName']}", end = ": ")
         # print(res)
         # return
@@ -153,7 +154,7 @@ def getData(urn_id):
                 break
         else:
             print("Not a student in CIT")
-        return f"{res['firstName']} {res['lastName']}"
+        return f"{res['firstName']} {res['lastName']}", uname
     except Exception as e:
         print(f"Unable to fetch api: {e}")
         print(traceback.format_exc())
@@ -162,7 +163,7 @@ def getData(urn_id):
 Process all stored users
 limit=How many records to process, defaults to -1(all)
 """
-def processStoredUsers(limit=-1):
+def processStoredUsers(client: APIClientManager, limit=-1):
     processedCount = 0
     processedNames = []
     urn_ids = db.get_urn_ids()
@@ -170,11 +171,14 @@ def processStoredUsers(limit=-1):
         urn_ids = urn_ids[:limit]
     pbar = tqdm(urn_ids)
     for urn_id in pbar:
-        name = getData(urn_id)
-        processedNames.append(name)
-        pbar.set_description(f"Processing user: {name}")
-        processedCount += 1
-        sleep(randint(7, 20))
+        ret = getData(client, urn_id)
+        if (ret is None):
+            break
+        else:
+            name, uname = ret
+            processedNames.append(name)
+            pbar.set_description(f"Processed user: {name} with client: {uname}")
+            processedCount += 1
     print(f"\n\nProcessed users: {processedNames}")
     print(f"\n\nProcessed {processedCount} users!")
     
