@@ -1,4 +1,7 @@
-from config import DATABASE_URI
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+from config import DATABASE_URI, UPDATE_HOURS
 from sqlalchemy import and_, create_engine, exists, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import sessionmaker
@@ -29,6 +32,17 @@ def get_urn_ids() -> list[str]:
     urn_ids = [row[0] for row in res]
     session.close()
     return urn_ids
+
+def get_urn_ids_not_updated() -> list[str]:
+    session = Session()
+    try:
+        hours_ago = datetime.now(ZoneInfo("UTC")) - timedelta(hours=UPDATE_HOURS)
+        query = select(User.urn_id).where(User.last_updated_at < hours_ago)
+        result = session.execute(query)
+        urn_ids = [row[0] for row in result]
+        return urn_ids
+    finally:
+        session.close()
 
 def user_exists(urn_id):
     session = Session()

@@ -3,3 +3,4 @@ linkedin-api
 sqlalchemy
 python-dotenv
 psycopg2
+tzdata

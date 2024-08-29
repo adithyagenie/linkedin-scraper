@@ -148,12 +148,12 @@ def getData(apiManager: APIClientManager, urn_id):
                         # -------------------------- UPSERT SCHOOL EXPERIENCE -------------------------- #
                         db.upsert_school_experience(urn_id, schoolId, degreeName, fieldOfStudy, grade, startDate, endDate, is_current)
 
-                    # -------------- UPDATE USER LAST UPD TIMESTAMP ------------------ #
-                    db.update_user_last_updated(urn_id)
-
                 break
         else:
             print("Not a student in CIT")
+        
+        # -------------- UPDATE USER LAST UPD TIMESTAMP ------------------ #
+        db.update_user_last_updated(urn_id)
         return f"{res['firstName']} {res['lastName']}", uname
     except Exception as e:
         print(f"Unable to fetch api: {e}")
@@ -166,7 +166,7 @@ limit=How many records to process, defaults to -1(all)
 def processStoredUsers(client: APIClientManager, limit=-1):
     processedCount = 0
     processedNames = []
-    urn_ids = db.get_urn_ids()
+    urn_ids = db.get_urn_ids_not_updated()
     if (limit != -1):
         urn_ids = urn_ids[:limit]
     pbar = tqdm(urn_ids)
