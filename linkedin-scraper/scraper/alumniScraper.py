@@ -19,7 +19,7 @@ def searchAlumni(apiManager: APIClientManager, limit=-1):
 
     pbar = trange(limit)
     pbar.set_description(f"Searching people (client: {uname})...")
-    res = api.search_people(schools=["chennai-institute-of-technology"], limit=limit)
+    res = api.search_people(schools=["chennai-institute-of-technology"], keyword_company="HCLTech", limit=limit)
     apiManager.release_client(uname, api)
     pbar = tqdm(res)
     pbar.set_description("Storing people...")
@@ -54,110 +54,125 @@ def getData(apiManager: APIClientManager, urn_id):
         # return
         edu = res["education"]
         exp = res["experience"]
-        
-        if not edu or len(edu) == 0:
-            # print("Person does not have CIT in education")
-            return 
-        for i in edu:
-            if ("school" in i and 
-                (
-                    ("schoolName" in i["school"] and i["school"]["schoolName"] == "Chennai Institute of Technology") 
-                    or 
-                    ("entityUrn" in i["school"] and i["school"]["entityUrn"] == "urn:li:fs_miniSchool:195969")
-                )
-            ):                
-                if ("timePeriod" in i and "endDate" in i['timePeriod'] and i["timePeriod"]['endDate']['year'] < 2025):
-                    # ---------------- ALUMNI FOUND ------------------ #
+        try:
+            if not edu or len(edu) == 0:
+                print(f"\n{res['firstName']} {res['lastName']} not a student in CIT")
+                db.delete_user(urn_id)
+                return f"{res['firstName']} {res['lastName']}", uname
+            for i in edu:
+                if ("school" in i and 
+                    (
+                        ("schoolName" in i["school"] and i["school"]["schoolName"] == "Chennai Institute of Technology") 
+                        or 
+                        ("entityUrn" in i["school"] and i["school"]["entityUrn"] == "urn:li:fs_miniSchool:195969")
+                    )
+                ):                
+                    if ("timePeriod" in i and "endDate" in i['timePeriod'] and i["timePeriod"]['endDate']['year'] < 2025):
+                        # ---------------- ALUMNI FOUND ------------------ #
 
-                    db.update_user(urn_id, alumni=True)
+                        db.update_user(urn_id, alumni=True)
 
-                    if (not exp or len(exp) == 0):
-                        print("Person studied in CIT is not in a job currently!")
-                        break
+                        if (not exp or len(exp) == 0):
+                            print(f"\n{res['firstName']} {res['lastName']} studied in CIT is not in a job currently!")
+                            break
 
-                    # -------------------- DELETE EXISTING JOB RECORDS ------------------------ #
-                    db.delete_user_job_experiences(urn_id)
+                        # -------------------- DELETE EXISTING JOB RECORDS ------------------------ #
+                        db.delete_user_job_experiences(urn_id)
 
-                    # -------------------- ADD NEW JOB RECORDS ------------------- #
-                    for job in exp:
-                        if ("companyName" not in job or "companyUrn" not in job):
-                            raise Exception("Company URN or Name is missing!")
+                        # -------------------- ADD NEW JOB RECORDS ------------------- #
+                        for job in exp:
+                            if ("companyName" not in job or "companyUrn" not in job):
+                                raise Exception(f"\n{res['firstName']} {res['lastName']}: Company URN or Name is missing!")
+                            
+                            location = job["locationName"] if "locationName" in job else ""
+                            companyName = job["companyName"]
+                            jobTitle = job["title"] if "title" in job else ""
+                            companyUrn = job["companyUrn"]
+                            startDate = endDate = None
+                            is_current = False
+                            if ("timePeriod" in job):
+                                tp = job["timePeriod"]
+                                if ("startDate" in tp):
+                                    start = tp["startDate"]
+                                    if ("year" in start):
+                                        startDate = date(start["year"], start["month"] if "month" in start else 1, 1)
+                                if ("endDate" in tp):
+                                    end = tp["endDate"]
+                                    if ("year" in start):
+                                        endDate = date(end["year"], end["month"] if "month" in end else 1, 1)
+                                else:
+                                    is_current = True if "startDate" in tp else False
+
+                            # ------------------- DATABASE ADD ----------------------- #
+                            if (not db.company_exists(companyUrn)):
+                                companyId = db.create_company(companyUrn, companyName)
+                            else:
+                                company = db.get_company(companyUrn, by_urn=True)
+                                companyId = company.id
+                            # ------------------ UPSERT JOB EXPERIENCE --------------------- #
+                            db.upsert_job_experience(urn_id, companyId, jobTitle, startDate, location, endDate, is_current)
+
+                        # ----------------- DELETE SCHOOL EXP -------------------- #
+                        db.delete_user_school_experience(urn_id)
                         
-                        location = job["locationName"] if "locationName" in job else ""
-                        companyName = job["companyName"]
-                        jobTitle = job["title"] if "title" in job else ""
-                        companyUrn = job["companyUrn"]
-                        startDate = endDate = None
-                        is_current = False
-                        if ("timePeriod" in job):
-                            tp = job["timePeriod"]
-                            if ("startDate" in tp):
-                                start = tp["startDate"]
-                                if ("year" in start):
-                                    startDate = date(start["year"], start["month"] if "month" in start else 1, 1)
-                            if ("endDate" in tp):
-                                end = tp["endDate"]
-                                if ("year" in start):
-                                    endDate = date(end["year"], end["month"] if "month" in end else 1, 1)
+                        # -------------------------- SCHOOL ---------------------- #
+                        for school in edu:
+                            schoolName = school["schoolName"]
+                            schoolUrn = school["entityUrn"]
+                            startDate = endDate = None
+                            degreeName = "NOTSET"
+                            fieldOfStudy = grade = None
+                            is_current = False
+                            if ("timePeriod" in school):
+                                tp = school["timePeriod"]
+                                if ("startDate" in tp):
+                                    start = tp["startDate"]
+                                    if ("year" in start):
+                                        startDate = date(start["year"], start["month"] if "month" in start else 1, 1)
+                                if ("endDate" in tp):
+                                    end = tp["endDate"]
+                                    if ("year" in start):
+                                        endDate = date(end["year"], end["month"] if "month" in end else 1, 1)
+                                else:
+                                    is_current = True if "startDate" in tp else False
+                            degreeName = school["degreeName"] if "degreeName" in school else "NOTSET"
+                            fieldOfStudy = school["fieldOfStudy"] if "fieldOfStudy" in school else None
+                            if "grade" in school:
+                                grade = school["grade"]
+                                grade = grade.replace("%", "")
+                                grade = grade.replace("CGPA: ", "")
+                                grade = float(grade)
                             else:
-                                is_current = True if "startDate" in tp else False
+                                grade = None
 
-                        # ------------------- DATABASE ADD ----------------------- #
-                        if (not db.company_exists(companyUrn)):
-                            companyId = db.create_company(companyUrn, companyName)
-                        else:
-                            company = db.get_company(companyUrn, by_urn=True)
-                            companyId = company.id
-                        # ------------------ UPSERT JOB EXPERIENCE --------------------- #
-                        db.upsert_job_experience(urn_id, companyId, jobTitle, startDate, location, endDate, is_current)
-
-                    # ----------------- DELETE SCHOOL EXP -------------------- #
-                    db.delete_user_school_experience(urn_id)
-                    
-                    # -------------------------- SCHOOL ---------------------- #
-                    for school in edu:
-                        schoolName = school["schoolName"]
-                        schoolUrn = school["entityUrn"]
-                        startDate = endDate = None
-                        degreeName = "NOTSET"
-                        fieldOfStudy = grade = None
-                        is_current = False
-                        if ("timePeriod" in school):
-                            tp = school["timePeriod"]
-                            if ("startDate" in tp):
-                                start = tp["startDate"]
-                                if ("year" in start):
-                                    startDate = date(start["year"], start["month"] if "month" in start else 1, 1)
-                            if ("endDate" in tp):
-                                end = tp["endDate"]
-                                if ("year" in start):
-                                    endDate = date(end["year"], end["month"] if "month" in end else 1, 1)
+                            # ------------------- DATABASE ADD ----------------------- #
+                            if (not db.school_exists(schoolUrn)):
+                                schoolId = db.create_school(schoolUrn, schoolName)
                             else:
-                                is_current = True if "startDate" in tp else False
-                        degreeName = school["degreeName"] if "degreeName" in school else "NOTSET"
-                        fieldOfStudy = school["fieldOfStudy"] if "fieldOfStudy" in school else None
-                        grade = float(school["grade"][:-1]) if "grade" in school else None
+                                existing_school = db.get_school(schoolUrn, by_urn=True)
+                                schoolId = existing_school.id
 
-                        # ------------------- DATABASE ADD ----------------------- #
-                        if (not db.school_exists(schoolUrn)):
-                            schoolId = db.create_school(schoolUrn, schoolName)
-                        else:
-                            existing_school = db.get_school(schoolUrn, by_urn=True)
-                            schoolId = existing_school.id
-
-                        # -------------------------- UPSERT SCHOOL EXPERIENCE -------------------------- #
-                        db.upsert_school_experience(urn_id, schoolId, degreeName, fieldOfStudy, grade, startDate, endDate, is_current)
-
-                break
-        else:
-            print("Not a student in CIT")
-        
-        # -------------- UPDATE USER LAST UPD TIMESTAMP ------------------ #
-        db.update_user_last_updated(urn_id)
-        return f"{res['firstName']} {res['lastName']}", uname
+                            # -------------------------- UPSERT SCHOOL EXPERIENCE -------------------------- #
+                            db.upsert_school_experience(urn_id, schoolId, degreeName, fieldOfStudy, grade, startDate, endDate, is_current)
+                        break
+                    else:
+                        print(f"\n{res['firstName']} {res['lastName']} not an alumni")
+                        break
+            else:
+                print(f"\n{res['firstName']} {res['lastName']} not a student in CIT")
+                db.delete_user(urn_id)
+                return f"{res['firstName']} {res['lastName']}", uname
+            
+            # -------------- UPDATE USER LAST UPD TIMESTAMP ------------------ #
+            db.update_user_last_updated(urn_id)
+            return f"{res['firstName']} {res['lastName']}", uname
+        except Exception as e:
+            print(f"Error fetching for {urn_id}: {e}")
+            return f"{urn_id}", uname
     except Exception as e:
         print(f"Unable to fetch api: {e}")
         print(traceback.format_exc())
+        return f"{urn_id}", uname
 
 """
 Process all stored users
