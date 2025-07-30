@@ -1,7 +1,7 @@
 import os
 import sys
 
-import scraper.alumniScraper as scrape
+import scraper.scraper as scrape
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

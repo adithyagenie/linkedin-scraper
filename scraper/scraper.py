@@ -19,7 +19,7 @@ def searchAlumni(apiManager: APIClientManager, limit=-1):
 
     pbar = trange(limit)
     pbar.set_description(f"Searching people (client: {uname})...")
-    res = api.search_people(schools=["chennai-institute-of-technology"], keyword_company="HCLTech", limit=limit)
+    res = api.search_people(schools=["college-name-here"], limit=limit)
     apiManager.release_client(uname, api)
     pbar = tqdm(res)
     pbar.set_description("Storing people...")
@@ -43,7 +43,7 @@ def searchAlumni(apiManager: APIClientManager, limit=-1):
 Fetches profile of user
 urn_id = User's urn_id
 """
-def getData(apiManager: APIClientManager, urn_id):  
+def getData(apiManager: APIClientManager, urn_id):
     try:
         # res = api.get_profile(username)
         uname, api = apiManager.get_client()
@@ -60,13 +60,13 @@ def getData(apiManager: APIClientManager, urn_id):
                 db.delete_user(urn_id)
                 return f"{res['firstName']} {res['lastName']}", uname
             for i in edu:
-                if ("school" in i and 
+                if ("school" in i and
                     (
-                        ("schoolName" in i["school"] and i["school"]["schoolName"] == "Chennai Institute of Technology") 
-                        or 
+                        ("schoolName" in i["school"] and i["school"]["schoolName"] == "Chennai Institute of Technology")
+                        or
                         ("entityUrn" in i["school"] and i["school"]["entityUrn"] == "urn:li:fs_miniSchool:195969")
                     )
-                ):                
+                ):
                     if ("timePeriod" in i and "endDate" in i['timePeriod'] and i["timePeriod"]['endDate']['year'] < 2025):
                         # ---------------- ALUMNI FOUND ------------------ #
 
@@ -83,7 +83,7 @@ def getData(apiManager: APIClientManager, urn_id):
                         for job in exp:
                             if ("companyName" not in job or "companyUrn" not in job):
                                 raise Exception(f"\n{res['firstName']} {res['lastName']}: Company URN or Name is missing!")
-                            
+
                             location = job["locationName"] if "locationName" in job else ""
                             companyName = job["companyName"]
                             jobTitle = job["title"] if "title" in job else ""
@@ -114,7 +114,7 @@ def getData(apiManager: APIClientManager, urn_id):
 
                         # ----------------- DELETE SCHOOL EXP -------------------- #
                         db.delete_user_school_experience(urn_id)
-                        
+
                         # -------------------------- SCHOOL ---------------------- #
                         for school in edu:
                             schoolName = school["schoolName"]
@@ -162,7 +162,7 @@ def getData(apiManager: APIClientManager, urn_id):
                 print(f"\n{res['firstName']} {res['lastName']} not a student in CIT")
                 db.delete_user(urn_id)
                 return f"{res['firstName']} {res['lastName']}", uname
-            
+
             # -------------- UPDATE USER LAST UPD TIMESTAMP ------------------ #
             db.update_user_last_updated(urn_id)
             return f"{res['firstName']} {res['lastName']}", uname
@@ -196,4 +196,3 @@ def processStoredUsers(client: APIClientManager, limit=-1):
             processedCount += 1
     print(f"\n\nProcessed users: {processedNames}")
     print(f"\n\nProcessed {processedCount} users!")
-    
